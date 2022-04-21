@@ -1,0 +1,32 @@
+---
+title: "music clustering"
+author: "James Reber"
+date: "4/20/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+train = read.csv('train.csv')
+```
+
+```{r}
+library(ggplot2)
+library(plotly)
+library(gridExtra)
+library(leaps)
+library(psych)
+library(NbClust)
+library(sqldf)
+```
+
+```{r}
+hca.fit <- NbClust(data = train[,c('danceability', 'loudness')],
+				distance = "euclidean", 
+				method = "ward.D",
+				index="all")
+```
+
