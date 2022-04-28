@@ -1,0 +1,111 @@
+---
+title: "Hip Hop vs Pop"
+author: "Aaron Massis"
+date: "4/27/2022"
+output: html_document
+---
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(leaps)
+
+```
+
+```{r}
+
+# Hip Hop (5) vs Pop (9)
+genre <- read.csv("~/DATA 498A HW/Capstone Project/train.csv")
+genre <- na.omit(genre)
+View(genre)
+mi <- subset(genre, Class == c(5,9))
+mi$Class <- ifelse(mi$Class==5, 0, 1)
+View(mi)
+
+glm_model <- glm(formula=Class ~ . - Artist.Name - Track.Name - key - time_signature - duration_in.min.ms, family=binomial, data=mi)
+summary(glm_model)
+
+```
+
+```{r}
+
+# Plots for Hip Hop vs Pop
+val_dance <- ggplot(mi, aes(x = valence, y = danceability, color = as.factor(Class))) + geom_point()
+loud_energy <- ggplot(mi, aes(x = loudness, y = energy, color = as.factor(Class))) + geom_point()
+loud_acoustic <- ggplot(mi, aes(x = loudness, y = acousticness, color = as.factor(Class))) + geom_point()
+energy_acoustic <- ggplot(mi, aes(x = energy, y = acousticness, color = as.factor(Class))) + geom_point()
+grid.arrange(val_dance, loud_energy, loud_acoustic, energy_acoustic, ncol = 2) 
+
+```
+
+```{r}
+# Lasso Regression
+library(glmnet)
+set.seed(1)
+train <- sample(1:nrow(mi), nrow(mi)/2)
+X <- model.matrix(Class ~ . - Artist.Name - Track.Name - key - time_signature - duration_in.min.ms, mi)
+Y <- mi$Class
+grid <- 10^ seq (10, -2, length = 100)
+
+cv.out <- cv.glmnet(X[train, ], Y[train], family = "binomial", alpha=1)
+plot(cv.out)
+bestlam <- cv.out$lambda.min
+
+lasso.model <- glmnet(X[train, ], Y[train], alpha = 1, family = "binomial", lambda = grid)
+predict(lasso.model, s=bestlam, type="coefficients")[1:13, ]
+
+full.lasso <- glmnet(X, Y, alpha=1, family = "binomial", lambda=grid)
+predict(full.lasso, s=bestlam, type="coefficients")[1:13, ]
+
+```
+
+```{r}
+
+# Ridge Regression
+
+cv.ridge <- cv.glmnet(X[train , ], Y[train], family="binomial", alpha=0)
+bestlam <- cv.ridge$lambda.min
+
+ridge.model <- glmnet(X[train , ], Y[train], alpha = 0, family="binomial", lambda = grid, thresh = 1e-12)
+predict(ridge.model, s=bestlam, type="coefficients")[1:13, ]
+
+```
+
+```{r}
+## Test Predictions
+
+# Lasso model
+Y.test = Y[-train]
+
+lasso.probs = predict(lasso.model, s=bestlam, newx=X[-train,], type="response")
+
+lasso.pred=rep(0, 417)
+lasso.pred[lasso.probs>.5]=1
+table(lasso.pred, Y.test)
+mean(lasso.pred!=Y.test)
+
+# Ridge model
+
+ridge.probs <- predict(ridge.model , s = bestlam , newx = X[-train ,], type="response")
+
+ridge.pred=rep(0, 417)
+ridge.pred[ridge.probs>.5]=1
+table(ridge.pred, Y.test)
+mean(ridge.pred!=Y.test)
+
+
+# Updated/Reduced Model
+mi_test = mi[-train, ]
+Class.test = mi_test$Class
+
+updated_model <- glm(formula=Class ~ Popularity + danceability + speechiness + valence, family=binomial, data=mi, subset=train)
+updated.probs = predict(updated_model, mi_test, type="response")
+
+updated.pred=rep(0, 417)
+updated.pred[updated.probs>.5]=1
+table(updated.pred, Class.test)
+mean(updated.pred!=Class.test)
+
+```
