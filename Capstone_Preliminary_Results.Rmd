@@ -1,0 +1,171 @@
+---
+title: "Capstone Preliminary Results"
+author: "Aaron Massis"
+date: "4/17/2022"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(leaps)
+```
+
+
+```{r}
+
+# Metal vs Rock
+
+# aaron's read.csv -- commented out bc I have a different file path, just comment mine out when you rerun!
+#genre <- read.csv("~/DATA 498A HW/Capstone Project/train.csv")
+
+# grace's read.csv
+genre <- read.csv("~/Library/Mobile Documents/com~apple~CloudDocs/SPRING2022/DATA498A/DATA498/train.csv")
+
+genre <- na.omit(genre)
+View(genre)
+mi <- subset(genre, Class == c(8,10))
+mi$Class <- ifelse(mi$Class==8, 0, 1)
+View(mi)
+
+glm_model <- glm(formula=Class ~ . - Artist.Name - Track.Name - key - time_signature, family=binomial, data=mi)
+summary(glm_model)
+
+```
+
+
+```{r}
+
+# Plots for Metal vs Rock
+val_dance <- ggplot(mi, aes(x = valence, y = danceability, color = as.factor(Class))) + geom_point()
+loud_energy <- ggplot(mi, aes(x = loudness, y = energy, color = as.factor(Class))) + geom_point()
+loud_acoustic <- ggplot(mi, aes(x = loudness, y = acousticness, color = as.factor(Class))) + geom_point()
+energy_acoustic <- ggplot(mi, aes(x = energy, y = acousticness, color = as.factor(Class))) + geom_point()
+grid.arrange(val_dance, loud_energy, loud_acoustic, energy_acoustic, ncol = 2) 
+
+```
+
+
+```{r}
+#Forward Selection (realized we cannot use for logistic regression, but keeping code for future reference)
+regfit.fwd <- regsubsets(Class ~ . - Artist.Name - Track.Name - key - time_signature, data = mi, nvmax = 12, method = "forward")
+regfwd.summary <- summary(regfit.fwd)
+regfwd_adjr2 <- regfwd.summary$adjr2
+regfwd_cp <- regfwd.summary$cp
+regfwd_bic <- regfwd.summary$bic
+
+#Backward Selection (realized we cannot use for logistic regression, but keeping code for future reference)
+regfit.bwd <- regsubsets(Class ~ . - Artist.Name - Track.Name - key - time_signature, data = mi, nvmax = 12, method = "backward")
+regbwd.summary <- summary(regfit.bwd)
+regbwd_adjr2 <- regbwd.summary$adjr2
+regbwd_cp <- regbwd.summary$cp
+regbwd_bic <- regbwd.summary$bic
+
+```
+
+```{r}
+
+# Make plots for forward selection
+par(mfrow = c(1, 3))
+plot(regfwd_adjr2, xlab="Number of Variables", ylab="Adjusted R^2", type="l")
+index = which.max(regfwd_adjr2)
+points(index, regfwd_adjr2[index], col="red", cex=2, pch=20)
+coef(regfit.fwd, index)
+
+plot(regfwd_cp, xlab="Number of Variables", ylab="Cp", type="l")
+index = which.min(regfwd_cp)
+points(index, regfwd_cp[index], col="red", cex=2, pch=20)
+coef(regfit.fwd, index)
+
+plot(regfwd_bic, xlab="Number of Variables", ylab="BIC", type="l")
+index = which.min(regfwd_bic)
+points(index, regfwd_bic[index], col="red", cex=2, pch=20)
+coef(regfit.fwd, index)
+
+```
+
+```{r}
+
+# Make plots for backward selection
+par(mfrow = c(1, 3))
+plot(regbwd_adjr2, xlab="Number of Variables", ylab="Adjusted R^2", type="l")
+index = which.max(regbwd_adjr2)
+points(index, regbwd_adjr2[index], col="red", cex=2, pch=20)
+coef(regfit.bwd, index)
+
+plot(regbwd_cp, xlab="Number of Variables", ylab="Cp", type="l")
+index = which.min(regbwd_cp)
+points(index, regbwd_cp[index], col="red", cex=2, pch=20)
+coef(regfit.bwd, index)
+
+plot(regbwd_bic, xlab="Number of Variables", ylab="BIC", type="l")
+index = which.min(regbwd_bic)
+points(index, regbwd_bic[index], col="red", cex=2, pch=20)
+coef(regfit.bwd, index)
+
+```
+
+```{r}
+# Lasso Regression
+library(glmnet)
+set.seed(1)
+train <- sample(1:nrow(mi), nrow(mi)/2)
+X <- model.matrix(Class ~ . - Artist.Name - Track.Name - key - time_signature, mi)
+Y <- mi$Class
+
+cv.out <- cv.glmnet(X[train, ], Y[train], family = "binomial", alpha=1)
+bestlam <- cv.out$lambda.min
+model <- glmnet(X[train, ], Y[train], alpha = 1, family = "binomial", lambda = bestlam)
+coef(model)
+```
+
+```{r}
+# Test Predictions
+
+mi_test = mi[-train, ]
+Class.test = mi_test$Class
+
+# Lasso model
+
+train_lasso_model <- glm(formula=Class ~ danceability + energy + loudness + mode + speechiness + acousticness + instrumentalness + liveness + valence + duration_in.min.ms, family=binomial, data=mi, subset=train)
+lasso.probs = predict(train_lasso_model, mi_test, type="response")
+
+lasso.pred=rep(0, 1222)
+lasso.pred[lasso.probs>.5]=1
+table(lasso.pred, Class.test)
+mean(lasso.pred!=Class.test)
+
+# Updated/Reduced Model
+updated_lasso_model <- glm(formula=Class ~ energy + loudness + mode + acousticness + valence + duration_in.min.ms, family=binomial, data=mi, subset=train)
+updated.probs = predict(updated_lasso_model, mi_test, type="response")
+
+updated.pred=rep(0, 1222)
+updated.pred[updated.probs>.5]=1
+table(updated.pred, Class.test)
+mean(updated.pred!=Class.test)
+
+```
+
+```{r}
+# GRACE -- Cross Validation
+
+library(boot)
+error_df <- data.frame(matrix(ncol = 2, nrow = 10))
+colnames(error_df) <- c('test_error', 'fold')
+
+for (i in 1:10) 
+  {
+  glm.fit <- glm(formula=Class ~ energy + loudness + mode + acousticness + valence + duration_in.min.ms, family=binomial, data=mi)
+  error_df[i, 'test_error'] <- cv.glm(mi, glm.fit , K = 10)$delta[1]
+  error_df[i, 'fold'] <- i
+}
+
+
+# graph cross validation 
+ggplot(error_df,
+       aes(x = fold, y = test_error)) +
+  geom_line() + labs(x = 'Fold', y = 'Test Error', title = "")
+```
+
+
