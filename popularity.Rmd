@@ -17,5 +17,5 @@ pop_reduced <- lm(Popularity~danceability+energy+loudness+speechiness+acousticne
 summary(pop_reduced)
 
 plot(genre$danceability, genre$Popularity, xlab = "Danceability", ylab = "Popularity")
+plot(genre$energy, genre$Popularity, xlab = "Energy", ylab = "Popularity")
 ```
-
