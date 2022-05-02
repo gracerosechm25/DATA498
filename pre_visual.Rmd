@@ -14,6 +14,7 @@ library(gridExtra)
 Load Test Data
 ```{r}
 genre <- read.csv("~/Library/Mobile Documents/com~apple~CloudDocs/SPRING2022/DATA498A/DATA498/train.csv")
+summary(genre[,!names(genre) %in% c('Artist.Name', 'Track.Name')])
 ```
 
 Multiple Linear Regression Predicting Popularity (if we want to do something predicting popularity)
@@ -27,9 +28,28 @@ summary(popularity_lm)
 
 Correlation Matrix of Numeric Predictors 
 ```{r}
-numeric_predictors <- genre[,!names(genre) %in% c('Artist.Name', 'Track.Name', 'Class')]
+numeric_predictors <- genre[,!names(genre) %in% c('Artist.Name', 'Track.Name', 'Class', 'Mode')]
 cor(numeric_predictors) 
 ```
+
+```{r}
+# histograms of numeric variables
+par(mfrow = c(4, 4))
+hist(genre$Popularity, xlab = "", main = "Popularity")
+hist(genre$danceability, xlab = "", main = "Danceability")
+hist(genre$energy, xlab = "", main = "Energy")
+hist(genre$key, xlab = "", main = "Key")
+hist(genre$loudness, xlab = "", main = "Loudness")
+hist(genre$speechiness, xlab = "", main = "Speechiness")
+hist(genre$acousticness, xlab = "", main = "Acousticness")
+hist(genre$instrumentalness, xlab = "", main = "Instrumentalness")
+hist(genre$liveness, xlab = "", main = "Liveness")
+hist(genre$valence, xlab = "", main = "Valence")
+hist(genre$tempo, xlab = "", main = "Tempo")
+hist(genre$duration_in.min.ms, xlab = "", main = "Duration in Minutes")
+hist(genre$time_signature, xlab = "", main = "Time Signature")
+```
+
 
 Scatterplots of highly correlated variables, colored by Genre Class, all 10 
 ```{r}
